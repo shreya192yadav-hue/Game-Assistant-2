@@ -30,166 +30,63 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract Game Assistant ZIP
+      - name: Extract ZIP Code
         shell: bash
         run: |
           set -e
-
           ZIP_FILE="GameAssistant_NoLicense_v2.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: GameAssistant_NoLicense_v2.zip not found."
+            echo "ERROR: $ZIP_FILE not found."
             exit 1
           fi
 
-          rm -rf extracted_project
-          mkdir -p extracted_project
+          mkdir -p raw_project
+          unzip -q "$ZIP_FILE" -d raw_project
 
-          unzip -q "$ZIP_FILE" -d extracted_project
+          PROJECT_DIR=$(find raw_project -type f -name pubspec.yaml -print -quit | xargs dirname)
+          
+          # Move lib and pubspec to current workspace
+          cp -R "$PROJECT_DIR/lib" .
+          cp "$PROJECT_DIR/pubspec.yaml" .
+          if [ -d "$PROJECT_DIR/assets" ]; then cp -R "$PROJECT_DIR/assets" .; fi
 
-          PROJECT_DIR=$(find extracted_project -type f -name pubspec.yaml -print -quit | xargs dirname)
+          rm -rf raw_project android
+          echo "Source code copied successfully."
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: pubspec.yaml not found inside ZIP."
-            exit 1
-          fi
+      - name: Re-create Fresh Android Project
+        run: |
+          flutter create . --platforms=android --org=com.example.game_assistant
 
-          echo "Project found: $PROJECT_DIR"
-
-          cp -R "$PROJECT_DIR"/. .
-
-          rm -rf extracted_project
-
-      - name: Verify project
+      - name: Fix direction service syntax
         shell: bash
         run: |
-          set -e
-
-          test -f pubspec.yaml
-          test -f lib/main.dart
-          test -d android
-
-          echo "Game Assistant project ready."
-
-      - name: Fix direction service
-        shell: bash
-        run: |
-          set -e
-
           FILE="lib/services/direction_service.dart"
-
           if [ -f "$FILE" ]; then
             sed -i 's/e\.x\.atan2(e\.y)/atan2(e.x, e.y)/g' "$FILE"
-
             if ! grep -q "import 'dart:math';" "$FILE"; then
               sed -i "1i import 'dart:math';" "$FILE"
             fi
           fi
 
-      - name: Prepare Gradle wrapper
-        shell: bash
-        run: |
-          set -e
+      - name: Clean test folder
+        run: rm -f test/widget_test.dart
 
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-
-            TEMP_DIR="$RUNNER_TEMP/flutter_android_template"
-
-            rm -rf "$TEMP_DIR"
-            mkdir -p "$TEMP_DIR"
-
-            cd "$TEMP_DIR"
-
-            flutter create . --platforms=android --no-pub
-
-            cd "$GITHUB_WORKSPACE"
-
-            mkdir -p android/gradle/wrapper
-
-            cp "$TEMP_DIR/android/gradlew" android/gradlew
-            cp "$TEMP_DIR/android/gradlew.bat" android/gradlew.bat
-            cp "$TEMP_DIR/android/gradle/wrapper/gradle-wrapper.jar" android/gradle/wrapper/gradle-wrapper.jar
-            cp "$TEMP_DIR/android/gradle/wrapper/gradle-wrapper.properties" android/gradle/wrapper/gradle-wrapper.properties
-
-            chmod +x android/gradlew
-          fi
-
-          echo "Gradle wrapper ready."
-
-      - name: Fix Launcher Icon, Maven & JVM Target
-        shell: bash
-        run: |
-          set -e
-          BUILD_GRADLE="android/build.gradle"
-          SETTINGS_GRADLE="android/settings.gradle"
-          APP_BUILD_GRADLE="android/app/build.gradle"
-
-          # Fallback icon fix
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-
-          if [ ! -f "android/app/src/main/res/mipmap-hdpi/ic_launcher.png" ]; then
-            wget -q -O android/app/src/main/res/mipmap-hdpi/ic_launcher.png https://raw.githubusercontent.com/flutter/flutter/master/examples/hello_world/android/app/src/main/res/mipmap-hdpi/ic_launcher.png || true
-            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png || true
-            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png || true
-            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png || true
-            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
-          fi
-
-          # Force JVM 17 Target for Java and Kotlin
-          if [ -f "$APP_BUILD_GRADLE" ]; then
-            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' "$APP_BUILD_GRADLE" || true
-            sed -i 's/targetCompatibility = 1.8/targetCompatibility = 17/g' "$APP_BUILD_GRADLE" || true
-            sed -i "s/jvmTarget = '1.8'/jvmTarget = '17'/g" "$APP_BUILD_GRADLE" || true
-            sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' "$APP_BUILD_GRADLE" || true
-          fi
-
-          if [ -f "$SETTINGS_GRADLE" ]; then
-            sed -i 's/8\.7\.3/8\.9\.1/g' "$SETTINGS_GRADLE" || true
-            sed -i 's/8\.1\.1/8\.9\.1/g' "$SETTINGS_GRADLE" || true
-            sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$SETTINGS_GRADLE"
-          fi
-
-          if [ -f "$BUILD_GRADLE" ]; then
-            sed -i 's/8\.7\.3/8\.9\.1/g' "$BUILD_GRADLE" || true
-            sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$BUILD_GRADLE"
-            
-            # Global force JVM 17 for compile tasks
-            echo 'allprojects { tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinOptions.jvmTarget = "17" } }' >> "$BUILD_GRADLE"
-          fi
-
-          echo "android.suppressUnsupportedCompileSdk=34" >> android/gradle.properties
-          echo "android.experimental.r8.dexing-using-sdk-db=false" >> android/gradle.properties
-
-      - name: Remove default Flutter test
-        shell: bash
-        run: |
-          set -e
-
-          rm -f test/widget_test.dart
-
-      - name: Get dependencies
+      - name: Get Dependencies
         run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release --android-skip-build-dependency-validation --no-tree-shake-icons
+      - name: Build Release APK
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Verify APK
         shell: bash
         run: |
           set -e
-
           APK="build/app/outputs/flutter-apk/app-release.apk"
-
           test -f "$APK"
-
           echo "=============================="
           echo "APK BUILD SUCCESSFUL"
           echo "=============================="
-
           ls -lh "$APK"
 
       - name: Upload APK
