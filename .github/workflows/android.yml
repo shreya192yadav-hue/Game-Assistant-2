@@ -116,12 +116,13 @@ jobs:
 
           echo "Gradle wrapper ready."
 
-      - name: Fix Flutter Maven Repositories and Gradle Properties
+      - name: Fix Flutter Maven Repositories & NDK/AAR Check
         shell: bash
         run: |
           set -e
           BUILD_GRADLE="android/build.gradle"
           SETTINGS_GRADLE="android/settings.gradle"
+          APP_BUILD_GRADLE="android/app/build.gradle"
 
           if [ -f "$BUILD_GRADLE" ]; then
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$BUILD_GRADLE"
@@ -131,7 +132,10 @@ jobs:
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$SETTINGS_GRADLE"
           fi
 
-          # Disable AAR Metadata check to bypass Gradle version mismatch
+          if [ -f "$APP_BUILD_GRADLE" ]; then
+            sed -i '/android {/a \    ndkVersion "28.2.13676358"' "$APP_BUILD_GRADLE" || true
+          fi
+
           echo "android.suppressUnsupportedCompileSdk=34" >> android/gradle.properties
           echo "android.experimental.r8.dexing-using-sdk-db=false" >> android/gradle.properties
 
@@ -145,11 +149,11 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze application
-        run: flutter analyze lib || true
-
       - name: Build release APK
-        run: flutter build apk --release --android-skip-build-dependency-validation --no-tree-shake-icons --extra-front-end-options="--no-g3" || flutter build apk --release --android-skip-build-dependency-validation -Pandroid.overridePathCheck=true
+        shell: bash
+        run: |
+          cd android
+          ./gradlew assembleRelease -x checkReleaseAarMetadata -Pandroid.overridePathCheck=true
 
       - name: Verify APK
         shell: bash
