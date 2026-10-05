@@ -116,12 +116,13 @@ jobs:
 
           echo "Gradle wrapper ready."
 
-      - name: Fix Launcher Icon & Maven Repositories
+      - name: Fix Launcher Icon, Maven & JVM Target
         shell: bash
         run: |
           set -e
           BUILD_GRADLE="android/build.gradle"
           SETTINGS_GRADLE="android/settings.gradle"
+          APP_BUILD_GRADLE="android/app/build.gradle"
 
           # Fallback icon fix for mipmap/ic_launcher error
           mkdir -p android/app/src/main/res/mipmap-hdpi
@@ -130,13 +131,20 @@ jobs:
           mkdir -p android/app/src/main/res/mipmap-xxhdpi
           mkdir -p android/app/src/main/res/mipmap-xxxhdpi
 
-          # Create dummy launcher icon if missing
           if [ ! -f "android/app/src/main/res/mipmap-hdpi/ic_launcher.png" ]; then
             wget -q -O android/app/src/main/res/mipmap-hdpi/ic_launcher.png https://raw.githubusercontent.com/flutter/flutter/master/examples/hello_world/android/app/src/main/res/mipmap-hdpi/ic_launcher.png || true
             cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png || true
             cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png || true
             cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png || true
             cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
+          fi
+
+          # Fix JVM Compatibility in android/app/build.gradle
+          if [ -f "$APP_BUILD_GRADLE" ]; then
+            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' "$APP_BUILD_GRADLE" || true
+            sed -i 's/targetCompatibility = 1.8/targetCompatibility = 17/g' "$APP_BUILD_GRADLE" || true
+            sed -i "s/jvmTarget = '1.8'/jvmTarget = '17'/g" "$APP_BUILD_GRADLE" || true
+            sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' "$APP_BUILD_GRADLE" || true
           fi
 
           if [ -f "$SETTINGS_GRADLE" ]; then
