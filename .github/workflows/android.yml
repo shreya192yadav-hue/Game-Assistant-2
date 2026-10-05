@@ -58,14 +58,16 @@ jobs:
         run: |
           flutter create . --platforms=android --org=com.example.game_assistant
 
-      - name: Disable R8 & Minification Globally
+      - name: Disable Minification in Gradle
         shell: bash
         run: |
+          # Clean up any deprecated properties if present
           PROPERTIES_FILE="android/gradle.properties"
-          echo "android.enableR8=false" >> $PROPERTIES_FILE
-          echo "android.enableR8.fullMode=false" >> $PROPERTIES_FILE
-          
-          # Modify Kotlin DSL build.gradle.kts to disable release minification
+          if [ -f "$PROPERTIES_FILE" ]; then
+            sed -i '/android\.enableR8/d' "$PROPERTIES_FILE"
+          fi
+
+          # Modify Kotlin DSL build.gradle.kts to disable minification
           KTS_FILE="android/app/build.gradle.kts"
           if [ -f "$KTS_FILE" ]; then
             sed -i 's/isMinifyEnabled = true/isMinifyEnabled = false/g' "$KTS_FILE"
@@ -116,3 +118,4 @@ jobs:
           name: Game-Assistant-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          
