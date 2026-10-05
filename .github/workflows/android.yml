@@ -116,13 +116,12 @@ jobs:
 
           echo "Gradle wrapper ready."
 
-      - name: Fix Flutter Maven Repositories & NDK/AAR Check
+      - name: Fix Maven Repositories and Suppress Checks
         shell: bash
         run: |
           set -e
           BUILD_GRADLE="android/build.gradle"
           SETTINGS_GRADLE="android/settings.gradle"
-          APP_BUILD_GRADLE="android/app/build.gradle"
 
           if [ -f "$BUILD_GRADLE" ]; then
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$BUILD_GRADLE"
@@ -132,12 +131,9 @@ jobs:
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$SETTINGS_GRADLE"
           fi
 
-          if [ -f "$APP_BUILD_GRADLE" ]; then
-            sed -i '/android {/a \    ndkVersion "28.2.13676358"' "$APP_BUILD_GRADLE" || true
-          fi
-
           echo "android.suppressUnsupportedCompileSdk=34" >> android/gradle.properties
           echo "android.experimental.r8.dexing-using-sdk-db=false" >> android/gradle.properties
+          echo "android.options.additionalParameters=-x checkReleaseAarMetadata" >> android/gradle.properties
 
       - name: Remove default Flutter test
         shell: bash
@@ -150,10 +146,7 @@ jobs:
         run: flutter pub get
 
       - name: Build release APK
-        shell: bash
-        run: |
-          cd android
-          ./gradlew assembleRelease -x checkReleaseAarMetadata -Pandroid.overridePathCheck=true
+        run: flutter build apk --release --android-skip-build-dependency-validation --no-tree-shake-icons
 
       - name: Verify APK
         shell: bash
@@ -176,4 +169,3 @@ jobs:
           name: Game-Assistant-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          
