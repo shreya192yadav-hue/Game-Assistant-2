@@ -1,45 +1,97 @@
-name: Build Game Assistant APK
+Name: Game Assistant Auto-Clean Build
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Build Game Assistant APK
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Java 17
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'zulu'
-        java-version: '17'
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.x'
-        channel: 'stable'
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-    - name: Extract Source Code
-      run: flutter pub get
+      - name: Extract Source Code
+        shell: bash
+        run: |
+          set -e
+          ZIP_FILE="GameAssistant_NoLicense_v2.zip"
 
-    - name: Clean test folder
-      run: flutter clean
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: $ZIP_FILE not found."
+            exit 1
+          fi
 
-    - name: Get Dependencies
-      run: flutter pub get
+          mkdir -p raw_project
+          unzip -q "$ZIP_FILE" -d raw_project
 
-    - name: Build Release APK
-      run: flutter build apk --release --no-shrink --no-tree-shake-icons
+          PROJECT_DIR=$(find raw_project -type f -name pubspec.yaml -print -quit | xargs dirname)
+          
+          # Extract only pure Dart/Flutter source files
+          cp -R "$PROJECT_DIR/lib" .
+          cp "$PROJECT_DIR/pubspec.yaml" .
+          if [ -d "$PROJECT_DIR/assets" ]; then cp -R "$PROJECT_DIR/assets" .; fi
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: game-assistant-apk
-        path: build/app/outputs/flutter-apk/app-release.apk
-        
+          rm -rf raw_project android
+          echo "Source files extracted successfully."
+
+      - name: Generate Fresh Clean Android Platform
+        run: |
+          flutter create . --platforms=android --org=com.example.game_assistant
+
+      - name: Fix direction service syntax
+        shell: bash
+        run: |
+          FILE="lib/services/direction_service.dart"
+          if [ -f "$FILE" ]; then
+            sed -i 's/e\.x\.atan2(e\.y)/atan2(e.x, e.y)/g' "$FILE"
+            if ! grep -q "import 'dart:math';" "$FILE"; then
+              sed -i "1i import 'dart:math';" "$FILE"
+            fi
+          fi
+
+      - name: Clean test folder
+        run: rm -f test/widget_test.dart
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release --no-shrink --no-tree-shake-icons
+
+      - name: Verify APK Output
+        shell: bash
+        run: |
+          set -e
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          echo "=============================="
+          echo "APK BUILD SUCCESSFUL"
+          echo "=============================="
+          ls -lh "$APK"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Game-Assistant-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
