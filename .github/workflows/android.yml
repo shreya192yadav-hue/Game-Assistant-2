@@ -58,27 +58,19 @@ jobs:
         run: |
           flutter create . --platforms=android --org=com.example.game_assistant
 
-      - name: Disable Minification in Gradle
+      - name: Add ProGuard Rules for ML Kit
         shell: bash
         run: |
-          # Clean up any deprecated properties if present
-          PROPERTIES_FILE="android/gradle.properties"
-          if [ -f "$PROPERTIES_FILE" ]; then
-            sed -i '/android\.enableR8/d' "$PROPERTIES_FILE"
-          fi
-
-          # Modify Kotlin DSL build.gradle.kts to disable minification
-          KTS_FILE="android/app/build.gradle.kts"
-          if [ -f "$KTS_FILE" ]; then
-            sed -i 's/isMinifyEnabled = true/isMinifyEnabled = false/g' "$KTS_FILE"
-            sed -i 's/isShrinkResources = true/isShrinkResources = false/g' "$KTS_FILE"
-          fi
-
-          # Modify Groovy build.gradle if present
-          GROOVY_FILE="android/app/build.gradle"
-          if [ -f "$GROOVY_FILE" ]; then
-            sed -i 's/minifyEnabled true/minifyEnabled false/g' "$GROOVY_FILE"
-            sed -i 's/shrinkResources true/shrinkResources false/g' "$GROOVY_FILE"
+          PROGUARD_FILE="android/app/proguard-rules.pro"
+          echo "-keep class com.google.mlkit.** { *; }" >> "$PROGUARD_FILE"
+          echo "-dontwarn com.google.mlkit.**" >> "$PROGUARD_FILE"
+          
+          # Ensure proguard is referenced in build files if needed
+          GRADLE_KTS="android/app/build.gradle.kts"
+          if [ -f "$GRADLE_KTS" ]; then
+            if ! grep -q "proguardFiles" "$GRADLE_KTS"; then
+              sed -i '/getDefaultProguardFile/a proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")' "$GRADLE_KTS" || true
+            fi
           fi
 
       - name: Fix direction service syntax
@@ -118,4 +110,3 @@ jobs:
           name: Game-Assistant-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          
