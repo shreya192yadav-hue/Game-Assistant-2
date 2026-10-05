@@ -58,20 +58,25 @@ jobs:
         run: |
           flutter create . --platforms=android --org=com.example.game_assistant
 
-      - name: Disable R8 Minification in Android Build
+      - name: Disable R8 & Minification Globally
         shell: bash
         run: |
-          GRADLE_FILE="android/app/build.gradle"
-          GRADLE_KTS="android/app/build.gradle.kts"
-
-          if [ -f "$GRADLE_FILE" ]; then
-            sed -i 's/minifyEnabled true/minifyEnabled false/g' "$GRADLE_FILE"
-            sed -i 's/shrinkResources true/shrinkResources false/g' "$GRADLE_FILE"
+          PROPERTIES_FILE="android/gradle.properties"
+          echo "android.enableR8=false" >> $PROPERTIES_FILE
+          echo "android.enableR8.fullMode=false" >> $PROPERTIES_FILE
+          
+          # Modify Kotlin DSL build.gradle.kts to disable release minification
+          KTS_FILE="android/app/build.gradle.kts"
+          if [ -f "$KTS_FILE" ]; then
+            sed -i 's/isMinifyEnabled = true/isMinifyEnabled = false/g' "$KTS_FILE"
+            sed -i 's/isShrinkResources = true/isShrinkResources = false/g' "$KTS_FILE"
           fi
 
-          if [ -f "$GRADLE_KTS" ]; then
-            sed -i 's/isMinifyEnabled = true/isMinifyEnabled = false/g' "$GRADLE_KTS"
-            sed -i 's/isShrinkResources = true/isShrinkResources = false/g' "$GRADLE_KTS"
+          # Modify Groovy build.gradle if present
+          GROOVY_FILE="android/app/build.gradle"
+          if [ -f "$GROOVY_FILE" ]; then
+            sed -i 's/minifyEnabled true/minifyEnabled false/g' "$GROOVY_FILE"
+            sed -i 's/shrinkResources true/shrinkResources false/g' "$GROOVY_FILE"
           fi
 
       - name: Fix direction service syntax
