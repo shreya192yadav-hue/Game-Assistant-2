@@ -124,7 +124,7 @@ jobs:
           SETTINGS_GRADLE="android/settings.gradle"
           APP_BUILD_GRADLE="android/app/build.gradle"
 
-          # Fallback icon fix for mipmap/ic_launcher error
+          # Fallback icon fix
           mkdir -p android/app/src/main/res/mipmap-hdpi
           mkdir -p android/app/src/main/res/mipmap-mdpi
           mkdir -p android/app/src/main/res/mipmap-xhdpi
@@ -139,7 +139,7 @@ jobs:
             cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
           fi
 
-          # Fix JVM Compatibility in android/app/build.gradle
+          # Force JVM 17 Target for Java and Kotlin
           if [ -f "$APP_BUILD_GRADLE" ]; then
             sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' "$APP_BUILD_GRADLE" || true
             sed -i 's/targetCompatibility = 1.8/targetCompatibility = 17/g' "$APP_BUILD_GRADLE" || true
@@ -156,6 +156,9 @@ jobs:
           if [ -f "$BUILD_GRADLE" ]; then
             sed -i 's/8\.7\.3/8\.9\.1/g' "$BUILD_GRADLE" || true
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$BUILD_GRADLE"
+            
+            # Global force JVM 17 for compile tasks
+            echo 'allprojects { tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinOptions.jvmTarget = "17" } }' >> "$BUILD_GRADLE"
           fi
 
           echo "android.suppressUnsupportedCompileSdk=34" >> android/gradle.properties
