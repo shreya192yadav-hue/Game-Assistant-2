@@ -1,4 +1,4 @@
-name: Game Assistant APK Build
+name: Game Assistant Auto-Clean Build
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract ZIP Code
+      - name: Extract Source Code
         shell: bash
         run: |
           set -e
@@ -46,15 +46,15 @@ jobs:
 
           PROJECT_DIR=$(find raw_project -type f -name pubspec.yaml -print -quit | xargs dirname)
           
-          # Move lib and pubspec to current workspace
+          # Extract only pure Dart/Flutter source files
           cp -R "$PROJECT_DIR/lib" .
           cp "$PROJECT_DIR/pubspec.yaml" .
           if [ -d "$PROJECT_DIR/assets" ]; then cp -R "$PROJECT_DIR/assets" .; fi
 
           rm -rf raw_project android
-          echo "Source code copied successfully."
+          echo "Source files extracted successfully."
 
-      - name: Re-create Fresh Android Project
+      - name: Generate Fresh Clean Android Platform
         run: |
           flutter create . --platforms=android --org=com.example.game_assistant
 
@@ -78,7 +78,7 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Verify APK
+      - name: Verify APK Output
         shell: bash
         run: |
           set -e
@@ -89,7 +89,7 @@ jobs:
           echo "=============================="
           ls -lh "$APK"
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Game-Assistant-APK
