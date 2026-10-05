@@ -1,4 +1,4 @@
-Name: Game Assistant Auto-Clean Build
+name: Game Assistant Auto-Clean Build
 
 on:
   push:
