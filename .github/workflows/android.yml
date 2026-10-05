@@ -116,14 +116,29 @@ jobs:
 
           echo "Gradle wrapper ready."
 
-      - name: Upgrade AGP & Fix Maven Repositories
+      - name: Fix Launcher Icon & Maven Repositories
         shell: bash
         run: |
           set -e
           BUILD_GRADLE="android/build.gradle"
           SETTINGS_GRADLE="android/settings.gradle"
 
-          # Force update Android Gradle Plugin version
+          # Fallback icon fix for mipmap/ic_launcher error
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+
+          # Create dummy launcher icon if missing
+          if [ ! -f "android/app/src/main/res/mipmap-hdpi/ic_launcher.png" ]; then
+            wget -q -O android/app/src/main/res/mipmap-hdpi/ic_launcher.png https://raw.githubusercontent.com/flutter/flutter/master/examples/hello_world/android/app/src/main/res/mipmap-hdpi/ic_launcher.png || true
+            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png || true
+            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png || true
+            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png || true
+            cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
+          fi
+
           if [ -f "$SETTINGS_GRADLE" ]; then
             sed -i 's/8\.7\.3/8\.9\.1/g' "$SETTINGS_GRADLE" || true
             sed -i 's/8\.1\.1/8\.9\.1/g' "$SETTINGS_GRADLE" || true
@@ -135,7 +150,6 @@ jobs:
             sed -i 's/google()/google()\n        maven { url "https:\/\/storage.googleapis.com\/download.flutter.io" }/g' "$BUILD_GRADLE"
           fi
 
-          # Add flags to bypass metadata check
           echo "android.suppressUnsupportedCompileSdk=34" >> android/gradle.properties
           echo "android.experimental.r8.dexing-using-sdk-db=false" >> android/gradle.properties
 
@@ -173,4 +187,3 @@ jobs:
           name: Game-Assistant-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          
